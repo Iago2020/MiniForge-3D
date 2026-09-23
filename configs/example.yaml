@@ -1,0 +1,32 @@
+project:
+  id: person-001
+
+input:
+  videos:
+    - input/person-002.mp4
+
+frames:
+  quality: maximum
+
+reconstruction:
+  engine: colmap
+  quality: maximum
+  cuda: true
+
+mesh:
+  preserve_face_detail: true
+
+model:
+  height_mm: 150
+
+base:
+  enabled: false
+  type: circular
+  text: null
+  height_mm: null
+
+output:
+  stl: true
+  obj: true
+  three_mf: false
+

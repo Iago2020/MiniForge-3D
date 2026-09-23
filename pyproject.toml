@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "miniforge3d"
+version = "0.1.0"
+description = "Pipeline local e modular para miniaturas 3D de pessoas"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "numpy>=2.0,<3",
+  "opencv-python-headless>=4.10,<5",
+  "PyYAML>=6.0.2,<7",
+]
+
+[project.optional-dependencies]
+segmentation = [
+  "rembg[cpu]>=2.0.67,<3",
+]
+
+[project.scripts]
+miniforge3d = "miniforge3d.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["miniforge3d*"]
