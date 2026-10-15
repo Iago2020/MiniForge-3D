@@ -144,8 +144,12 @@ export HF_TOKEN=hf_xxx
 **Privacidade:** a foto é enviada para um serviço público de terceiros (Hugging Face e
 o autor do Space). Use apenas fotos de pessoas que autorizaram isso.
 
-**Dicas de foto:** corpo inteiro, de frente, boa luz, fundo simples, braços levemente
-afastados do corpo e rosto nítido.
+**Dicas de foto:** corpo inteiro, de frente, boa luz, braços levemente afastados do
+corpo, rosto nítido e nada na frente da pessoa. O fundo pode ser qualquer um.
+
+Antes de gastar cota, o comando recusa fotos em que a pessoa está cortada pelo topo
+ou pelas laterais, ou ocupa quase a imagem inteira (selfie muito próxima). Nesses casos
+a IA costuma gerar uma placa achatada. Use `--allow-cropped` para tentar mesmo assim.
 
 ## Segurança do estado atual
 

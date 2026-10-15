@@ -14,6 +14,8 @@ BASE_OVERLAP_MM = 0.6
 MIN_BASE_RADIUS_RATIO = 0.15
 # Acima disso a parte de baixo não são pés, e sim um corte largo (busto, meio corpo).
 MAX_FOOTPRINT_RADIUS_RATIO = 0.35
+# Pessoas reais têm profundidade de pelo menos ~25% da altura; abaixo disso é uma placa.
+MIN_DEPTH_RATIO = 0.25
 
 
 @dataclass
@@ -159,6 +161,11 @@ def make_printable(raw_mesh_path: Path, settings: PhotoToModelSettings) -> Print
     _scale_to_height(mesh, settings.height_mm)
 
     figure_extents = [round(float(value), 2) for value in mesh.extents]
+    if min(mesh.extents[0], mesh.extents[1]) < mesh.extents[2] * MIN_DEPTH_RATIO:
+        warnings.append(
+            "Resultado achatado: a IA gerou uma placa em vez de um corpo. Tente outra foto "
+            "(pessoa inteira no quadro) ou outra variação com --seed."
+        )
     if settings.base == "round":
         base = _round_base(mesh, settings, warnings)
         if base is not None:

@@ -26,6 +26,7 @@ class PhotoToModelSettings:
     min_component_ratio: float = 0.02
     crop_margin_ratio: float = 0.08
     local_segmentation: bool = True
+    allow_cropped: bool = False
 
     def validate(self) -> None:
         if self.engine not in ENGINES:

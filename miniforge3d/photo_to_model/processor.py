@@ -43,6 +43,13 @@ def generate_from_photo(
         use_segmentation=settings.local_segmentation,
         mask_provider=mask_provider,
     )
+    if prepared.framing_problems and not settings.allow_cropped:
+        raise PhotoToModelError(
+            "Foto inadequada: " + "; ".join(prepared.framing_problems) + ". A IA tende a gerar "
+            "uma placa achatada nesses casos. Use uma foto com a pessoa inteira dentro do "
+            "quadro e espaço em volta da cabeça, ou rode com --allow-cropped para tentar assim mesmo. "
+            f"Recorte salvo em {prepared.path}."
+        )
     raw_mesh = engine.generate(prepared.path, prepared.has_alpha, output_dir / "02-generation")
     printable = make_printable(raw_mesh, settings)
 
@@ -67,7 +74,9 @@ def generate_from_photo(
             "foreground_ratio": prepared.foreground_ratio,
             **printable.statistics,
         },
-        "warnings": prepared.warnings + printable.warnings,
+        "warnings": prepared.warnings
+        + [f"Enquadramento: {problem}." for problem in prepared.framing_problems]
+        + printable.warnings,
         "error": None,
         "started_at": started_at.isoformat(),
         "finished_at": finished_at.isoformat(),

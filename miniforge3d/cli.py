@@ -118,6 +118,11 @@ def _parser() -> argparse.ArgumentParser:
     photo.add_argument("--octree-resolution", type=int, default=384)
     photo.add_argument("--steps", type=int, default=30)
     photo.add_argument(
+        "--allow-cropped",
+        action="store_true",
+        help="Gera mesmo se a pessoa estiver cortada pela borda ou perto demais.",
+    )
+    photo.add_argument(
         "--no-local-segmentation",
         action="store_true",
         help="Envia a foto inteira e deixa o serviço remoto remover o fundo.",
@@ -290,6 +295,7 @@ def _from_photo(args: argparse.Namespace) -> int:
         octree_resolution=args.octree_resolution,
         steps=args.steps,
         local_segmentation=not args.no_local_segmentation,
+        allow_cropped=args.allow_cropped,
     )
     run_id = f"photo-{datetime.now(UTC).strftime('%Y%m%dT%H%M%SZ')}"
     manifest = generate_from_photo(args.image, args.output, settings, run_id)

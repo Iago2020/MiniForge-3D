@@ -8,6 +8,7 @@ import cv2
 import numpy as np
 import trimesh
 
+from miniforge3d.photo_to_model.image_prep import framing_problems
 from miniforge3d.photo_to_model.mesh import make_printable
 from miniforge3d.photo_to_model.models import PhotoToModelError, PhotoToModelSettings
 from miniforge3d.photo_to_model.processor import generate_from_photo
@@ -92,6 +93,42 @@ class PhotoToModelTests(unittest.TestCase):
             printable = make_printable(raw, PhotoToModelSettings(height_mm=100))
             self.assertAlmostEqual(printable.mesh.extents[2], 100.0, delta=0.1)
             self.assertTrue(any("busto" in w for w in printable.warnings))
+
+    def test_blocks_cropped_photo_before_generation(self) -> None:
+        def cropped(_: np.ndarray) -> np.ndarray:
+            mask = np.zeros((200, 120), dtype=np.uint8)
+            mask[0:200, 30:120] = 255
+            return mask
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            engine = FakeEngine()
+            with self.assertRaises(PhotoToModelError) as raised:
+                generate_from_photo(
+                    _photo(root), root / "out", PhotoToModelSettings(), "r",
+                    engine=engine, mask_provider=cropped,
+                )
+            self.assertIn("encosta na borda", str(raised.exception))
+            self.assertIsNone(engine.received)
+
+            manifest = generate_from_photo(
+                _photo(root), root / "out2", PhotoToModelSettings(allow_cropped=True), "r",
+                engine=engine, mask_provider=cropped,
+            )
+            self.assertTrue(any("Enquadramento" in w for w in manifest["warnings"]))
+
+    def test_shoulders_touching_sides_are_allowed(self) -> None:
+        mask = np.zeros((200, 120), dtype=np.uint8)
+        mask[30:200, 20:100] = 255
+        mask[150:200, :] = 255
+        self.assertEqual(framing_problems(mask), [])
+
+    def test_warns_when_result_is_a_flat_plaque(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            raw = Path(temporary) / "plaque.glb"
+            trimesh.creation.box(extents=(0.8, 1.0, 0.1)).export(str(raw))
+            printable = make_printable(raw, PhotoToModelSettings(base="none"))
+            self.assertTrue(any("achatado" in w for w in printable.warnings))
 
     def test_refuses_to_overwrite_output(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

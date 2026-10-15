@@ -17,6 +17,12 @@ from miniforge3d.segmentation.processor import (
 
 
 MAX_SIDE = 1024
+# Fração de uma borda (topo/laterais) tocada pela máscara a partir da qual a pessoa
+# é considerada cortada pelo enquadramento. A borda de baixo é livre (bustos), e nas
+# laterais só conta a parte de cima, onde fica a cabeça: ombros na borda são normais.
+MAX_EDGE_TOUCH = 0.10
+SIDE_CHECK_RATIO = 0.6
+MAX_FOREGROUND_RATIO = 0.70
 MaskProvider = Callable[[np.ndarray], Any]
 
 
@@ -26,6 +32,7 @@ class PreparedPhoto:
     has_alpha: bool
     foreground_ratio: float | None
     warnings: list[str]
+    framing_problems: list[str]
 
 
 def _square_rgba(image: np.ndarray, mask: np.ndarray | None, margin_ratio: float) -> np.ndarray:
@@ -54,6 +61,25 @@ def _square_rgba(image: np.ndarray, mask: np.ndarray | None, margin_ratio: float
     return canvas
 
 
+def framing_problems(mask: np.ndarray) -> list[str]:
+    person = mask > 0
+    upper = person[: max(1, int(person.shape[0] * SIDE_CHECK_RATIO))]
+    problems = []
+    touched = [
+        name
+        for name, edge in (("topo", person[0]), ("esquerda", upper[:, 0]), ("direita", upper[:, -1]))
+        if edge.mean() > MAX_EDGE_TOUCH
+    ]
+    if touched:
+        problems.append(
+            f"o recorte encosta na borda da foto ({', '.join(touched)}): cabeça cortada ou "
+            "outra pessoa/objeto colado nela"
+        )
+    if person.mean() > MAX_FOREGROUND_RATIO:
+        problems.append("a foto está perto demais (a pessoa ocupa quase a imagem inteira)")
+    return problems
+
+
 def prepare_photo(
     image_path: Path,
     output_path: Path,
@@ -78,7 +104,9 @@ def prepare_photo(
             )
 
     foreground_ratio = None
+    problems: list[str] = []
     if mask is not None:
+        problems = framing_problems(mask)
         foreground_ratio = float(np.count_nonzero(mask)) / float(mask.size)
         if foreground_ratio < 0.03:
             warnings.append(
@@ -94,4 +122,5 @@ def prepare_photo(
         has_alpha=mask is not None,
         foreground_ratio=None if foreground_ratio is None else round(foreground_ratio, 6),
         warnings=warnings,
+        framing_problems=problems,
     )
