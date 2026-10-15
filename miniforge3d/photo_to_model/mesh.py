@@ -12,6 +12,8 @@ from miniforge3d.photo_to_model.models import PhotoToModelError, PhotoToModelSet
 FEET_BAND_MM = 3.0
 BASE_OVERLAP_MM = 0.6
 MIN_BASE_RADIUS_RATIO = 0.15
+# Acima disso a parte de baixo não são pés, e sim um corte largo (busto, meio corpo).
+MAX_FOOTPRINT_RADIUS_RATIO = 0.35
 
 
 @dataclass
@@ -96,15 +98,21 @@ def _flatten_bottom(mesh: Any, flatten_mm: float, warnings: list[str]) -> Any:
     return cut
 
 
-def _round_base(mesh: Any, settings: PhotoToModelSettings) -> Any:
+def _round_base(mesh: Any, settings: PhotoToModelSettings, warnings: list[str]) -> Any | None:
     trimesh = _trimesh()
     vertices = mesh.vertices
     feet = vertices[vertices[:, 2] <= FEET_BAND_MM][:, :2]
     if len(feet) == 0:
         feet = vertices[:, :2]
     center = (feet.min(axis=0) + feet.max(axis=0)) / 2.0
-    radius = float(np.linalg.norm(feet - center, axis=1).max()) + settings.base_margin_mm
-    radius = max(radius, settings.height_mm * MIN_BASE_RADIUS_RATIO)
+    footprint = float(np.linalg.norm(feet - center, axis=1).max())
+    if footprint > settings.height_mm * MAX_FOOTPRINT_RADIUS_RATIO:
+        warnings.append(
+            "A parte de baixo é larga (busto ou meio corpo): base desativada, "
+            "o corte inferior já serve de apoio."
+        )
+        return None
+    radius = max(footprint + settings.base_margin_mm, settings.height_mm * MIN_BASE_RADIUS_RATIO)
     height = settings.base_height_mm + BASE_OVERLAP_MM
     base = trimesh.creation.cylinder(radius=radius, height=height, sections=128)
     base.apply_translation((center[0], center[1], BASE_OVERLAP_MM - height / 2.0))
@@ -152,9 +160,10 @@ def make_printable(raw_mesh_path: Path, settings: PhotoToModelSettings) -> Print
 
     figure_extents = [round(float(value), 2) for value in mesh.extents]
     if settings.base == "round":
-        base = _round_base(mesh, settings)
-        mesh = _merge_base(mesh, base, warnings)
-        _place_on_plate(mesh)
+        base = _round_base(mesh, settings, warnings)
+        if base is not None:
+            mesh = _merge_base(mesh, base, warnings)
+            _place_on_plate(mesh)
 
     statistics = {
         "raw_faces": raw_faces,

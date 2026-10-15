@@ -8,6 +8,7 @@ import cv2
 import numpy as np
 import trimesh
 
+from miniforge3d.photo_to_model.mesh import make_printable
 from miniforge3d.photo_to_model.models import PhotoToModelError, PhotoToModelSettings
 from miniforge3d.photo_to_model.processor import generate_from_photo
 
@@ -82,6 +83,15 @@ class PhotoToModelTests(unittest.TestCase):
             stl = trimesh.load(str(output / "03-print" / "model.stl"))
             self.assertAlmostEqual(stl.extents[2], 80.0, delta=0.1)
             self.assertTrue(stl.is_watertight)
+
+    def test_skips_base_for_wide_bust(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            raw = root / "bust.glb"
+            trimesh.creation.box(extents=(1.4, 1.0, 1.4)).export(str(raw))
+            printable = make_printable(raw, PhotoToModelSettings(height_mm=100))
+            self.assertAlmostEqual(printable.mesh.extents[2], 100.0, delta=0.1)
+            self.assertTrue(any("busto" in w for w in printable.warnings))
 
     def test_refuses_to_overwrite_output(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
