@@ -16,6 +16,7 @@ O projeto implementa somente a camada de controle:
 - preparação de frames com FFmpeg e seleção por qualidade/diversidade.
 - segmentação local da pessoa, com frames de fundo uniforme e máscaras COLMAP.
 - planejamento e execução protegida de reconstrução COLMAP.
+- geração de STL imprimível a partir de uma única foto (`from-photo`).
 
 A reconstrução, o tratamento de mesh e a preparação para impressão ainda não são executados.
 
@@ -104,6 +105,47 @@ miniforge3d reconstruct `
 O modo completo executa extração de features, matching, SfM, dense stereo, fusão, meshes Poisson/Delaunay e texturização. A saída existente nunca é sobrescrita. Por padrão, usa matching exaustivo porque nossos datasets iniciais têm menos de algumas centenas de imagens e a prioridade é qualidade. Para conjuntos maiores, use `--matcher sequential`.
 
 Todos os caminhos relativos da configuração são resolvidos a partir da pasta em que o comando é executado.
+
+## Miniatura a partir de uma única foto
+
+Rota alternativa ao vídeo: uma foto de corpo inteiro vira um STL pronto para o
+Bambu Studio. A geração 3D roda de graça nos Spaces públicos do Hugging Face
+(Hunyuan3D 2.1 por padrão, TRELLIS como alternativa), então não depende da GPU local.
+
+```bash
+python -m pip install -e '.[photo]'
+miniforge3d from-photo --image input/foto.jpg --output workspaces/foto-001
+```
+
+Opções úteis: `--height-mm 150`, `--base round|none`, `--engine hunyuan3d|trellis`,
+`--seed 42` (gera outra variação) e `--no-local-segmentation`.
+
+Saída:
+
+```text
+foto-001/
+├── 01-input/prepared.png      # pessoa recortada, fundo transparente
+├── 02-generation/raw_mesh.glb # malha bruta devolvida pelo serviço
+├── 03-print/model.stl         # Z para cima, frente em -Y, altura em mm, com base
+└── manifest.json
+```
+
+O processamento local remove fragmentos soltos, fecha a malha, coloca a figura em pé,
+escala para a altura pedida, aplaina os pés e une uma base redonda.
+
+**Cota gratuita:** sem login, a cota de GPU do Hugging Face acaba depois de poucas
+gerações por dia. Crie um token gratuito em https://huggingface.co/settings/tokens
+(permissão *read*) e exporte antes de rodar:
+
+```bash
+export HF_TOKEN=hf_xxx
+```
+
+**Privacidade:** a foto é enviada para um serviço público de terceiros (Hugging Face e
+o autor do Space). Use apenas fotos de pessoas que autorizaram isso.
+
+**Dicas de foto:** corpo inteiro, de frente, boa luz, fundo simples, braços levemente
+afastados do corpo e rosto nítido.
 
 ## Segurança do estado atual
 

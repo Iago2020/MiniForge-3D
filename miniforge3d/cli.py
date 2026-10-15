@@ -11,6 +11,13 @@ from miniforge3d.engines.colmap import ColmapSettings, detect_colmap
 from miniforge3d.hardware import detect_hardware
 from miniforge3d.frame_preparation.models import FramePreparationSettings
 from miniforge3d.frame_preparation.processor import FramePreparationError, prepare_frames
+from miniforge3d.photo_to_model.models import (
+    BASES,
+    ENGINES,
+    PhotoToModelError,
+    PhotoToModelSettings,
+)
+from miniforge3d.photo_to_model.processor import generate_from_photo
 from miniforge3d.pipeline import PipelineError, STEPS, plan_new_run, plan_resume_run
 from miniforge3d.reconstruction.processor import (
     ReconstructionError,
@@ -94,6 +101,27 @@ def _parser() -> argparse.ArgumentParser:
         help="Usa CPU nas etapas esparsas. A etapa densa continua exigindo CUDA.",
     )
     reconstruction.add_argument("--dry-run", action="store_true")
+
+    photo = subparsers.add_parser(
+        "from-photo",
+        help="Gera uma miniatura imprimível (STL) a partir de uma única foto.",
+    )
+    photo.add_argument("--image", type=Path, required=True)
+    photo.add_argument("--output", type=Path, required=True)
+    photo.add_argument("--engine", choices=ENGINES, default="hunyuan3d")
+    photo.add_argument("--height-mm", type=float, default=150.0)
+    photo.add_argument("--base", choices=BASES, default="round")
+    photo.add_argument("--base-height-mm", type=float, default=3.0)
+    photo.add_argument("--base-margin-mm", type=float, default=4.0)
+    photo.add_argument("--flatten-mm", type=float, default=0.5)
+    photo.add_argument("--seed", type=int, default=1234)
+    photo.add_argument("--octree-resolution", type=int, default=384)
+    photo.add_argument("--steps", type=int, default=30)
+    photo.add_argument(
+        "--no-local-segmentation",
+        action="store_true",
+        help="Envia a foto inteira e deixa o serviço remoto remover o fundo.",
+    )
     return parser
 
 
@@ -250,6 +278,38 @@ def _segment_person(args: argparse.Namespace) -> int:
     return 0
 
 
+def _from_photo(args: argparse.Namespace) -> int:
+    settings = PhotoToModelSettings(
+        engine=args.engine,
+        height_mm=args.height_mm,
+        base=args.base,
+        base_height_mm=args.base_height_mm,
+        base_margin_mm=args.base_margin_mm,
+        flatten_mm=args.flatten_mm,
+        seed=args.seed,
+        octree_resolution=args.octree_resolution,
+        steps=args.steps,
+        local_segmentation=not args.no_local_segmentation,
+    )
+    run_id = f"photo-{datetime.now(UTC).strftime('%Y%m%dT%H%M%SZ')}"
+    manifest = generate_from_photo(args.image, args.output, settings, run_id)
+    print(
+        json.dumps(
+            {
+                "run_id": run_id,
+                "status": manifest["status"],
+                "stl": manifest["outputs"][-1],
+                "statistics": manifest["statistics"],
+                "warnings": manifest["warnings"],
+            },
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+        )
+    )
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = _parser()
     args = parser.parse_args(argv)
@@ -264,6 +324,8 @@ def main(argv: list[str] | None = None) -> int:
             return _segment_person(args)
         if args.command == "reconstruct":
             return _reconstruct(args)
+        if args.command == "from-photo":
+            return _from_photo(args)
         parser.error(f"Comando desconhecido: {args.command}")
     except (
         ConfigError,
@@ -271,6 +333,7 @@ def main(argv: list[str] | None = None) -> int:
         PipelineError,
         ReconstructionError,
         PersonSegmentationError,
+        PhotoToModelError,
         ValueError,
     ) as exc:
         print(f"erro: {exc}", file=sys.stderr)
